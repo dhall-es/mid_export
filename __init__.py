@@ -1,23 +1,30 @@
 import sd
 from sd.api.sdproperty import SDPropertyCategory
+from sd.api.sdbasetypes import float2
+
 from PySide6.QtWidgets import QMenu
 from PySide6.QtGui import QAction
 from PySide6.QtCore import Slot
 
+from mid_export.midutil import nodes as nds
+
 # Plugin entry point. Called by Designer when loading a plugin.
 def initializeSDPlugin():
-    print("mid_export initialized successfully")
+    pass
 
 # If this function is present in your plugin,
 # it will be called by Designer when unloading the plugin.
 def uninitializeSDPlugin():
     pass
 
-def getUIMgr():
+def getQTUIMgr():
     return sd.getContext().getSDApplication().getQtForPythonUIMgr()
 
+def getSDUIMgr():
+    return sd.getContext().getSDApplication().getUIMgr()
+
 def create_menu(menuName):
-    uiMgr = getUIMgr()
+    uiMgr = getQTUIMgr()
 
     preexisting_menu = uiMgr.findMenuFromObjectName(menuName)
 
@@ -30,101 +37,111 @@ def create_menu(menuName):
     # Create a new action.
     a_node_types = QAction(parent = menu, text = "Print Selected Node Types", triggered = printSelectedNodeTypes)
     a_node_inputs = QAction(parent = menu, text = "Print Nodes Connected To Inputs", triggered = printConnectedInputs)
+    a_node_defprop = QAction(parent = menu, text = "Print Definition Properties", triggered = printDefProps)
+    a_node_orm = QAction(parent = menu, text = "Generate ORM Outputs", triggered = autoWireORM)
 
     # Add the action to the menu.
     menu.addAction(a_node_types)
     menu.addAction(a_node_inputs)
+    menu.addAction(a_node_defprop)
+    menu.addAction(a_node_orm)
 
 @Slot()
 def printSelectedNodeTypes():
-    uiMgr = getUIMgr()
+    uiMgr = getQTUIMgr()
 
     current_selected = uiMgr.getCurrentGraphSelectedNodes()
-    printNodeTypes(current_selected)
+    # nds.printNodeTypes(current_selected)
+    for node in current_selected:
+        print(node.getDefinition().getId())
 
 @Slot()
 def printConnectedInputs():
-    uiMgr = getUIMgr()
+    uiMgr = getQTUIMgr()
 
     nodes = uiMgr.getCurrentGraphSelectedNodes()
-    connected_nodes = getConnectedInputNodes(nodes)
+    connected_nodes = nds.getConnectedInputNodes(nodes)
     nodes = list(connected_nodes.keys())
 
     for node in nodes:
         print(f"Node {node.getDefinition().getLabel()}:")
-        printNodeTypes(connected_nodes[node])
+        nds.printNodeTypes(connected_nodes[node])
+
+@Slot()
+def printDefProps():
+    uiMgr = getQTUIMgr()
+
+    nodes = uiMgr.getCurrentGraphSelectedNodes()
+    nds.printNodeDefinitionProperties(nodes)
+
+@Slot()
+def autoWireORM():
+    uiMgr = getQTUIMgr()
+
+    selected_nodes = uiMgr.getCurrentGraphSelectedNodes()
+    outputNodes = nds.getOutputNodes(selected_nodes)
+
+    if (len(outputNodes) <= 0):
+        return
+
+    annotation = SDPropertyCategory(0)
+
+    # ORM nodes will be found via identifier.
+    orm = [None, None, None]
+
+    for node in outputNodes:
+        identifier = node.getPropertyValueFromId('identifier', annotation).get()
+        match identifier:
+            case 'ambientocclusion':
+                orm[0] = node
+            case 'roughness':
+                orm[1] = node
+            case 'metallic':
+                orm[2] = node
+            case _:
+                continue
+    
+    getNodeBounds(orm)
+
+    new = uiMgr.getCurrentGraph().newNode('sbs::compositing::uniform')
+    getSDUIMgr().focusGraphNode(0, new)
+
+def getNodeBounds(nodes):
+    minimum = nodes[0].getPosition()
+    maximum = nodes[0].getPosition()
+    
+    for node in nodes:
+        pos = node.getPosition()
+
+        minimum.x = min(minimum.x, pos.x)
+        minimum.y = min(minimum.y, pos.y)
+
+        maximum.x = max(maximum.x, pos.x)
+        maximum.y = max(maximum.y, pos.y)
+    
+    median = float2((minimum.x + maximum.x) / 2, (minimum.y + maximum.y) / 2)
+
+    out = {
+        'min':minimum,
+        'max':maximum,
+        'median':median
+    }
+
+    return out
+
+def getMeanPosition(nodes):
+    total = float2(0, 0)
+    for node in nodes:
+        total.x += node.getPosition().x
+        total.y += node.getPosition().y
+
+    total.x /= len(nodes)
+    total.y /= len(nodes)
+
+    return total
 
 def printNodeNames(nodes):
     for node in nodes:
         print(node.getDefinition().getLabel())
-
-def printNodeTypes(nodes):
-    import re
-
-    for node in nodes:
-        # node definition ID (e.g. 'sbs::compositing::curve')
-        id = node.getDefinition().getId()
-
-        # separate the ID at every ::, then get the last element (e.g. 'curve')
-        name = re.split('::', id)[-1]
-
-        print(name)
-
-def getNodeProperties(nodes, category, connectableOnly = True):
-    '''
-    Get the properties of the given nodes.
-
-    :param list[SDNode] nodes: The list of nodes to get the properties from.
-    :param list[SDPropertyCategory] category: The category of properties to return.
-    :param bool connectableOnly: Whether to only return connectable properties.
-    :returns dict[SDNode, list[SDProperty]]: The nodes and their properties.
-    '''
-    
-    # SDPropertyCategories:
-    # Annotation = 0, Input = 1, Output = 2
-    sdCategory = SDPropertyCategory(category)
-    out = {}
-
-    for node in nodes:
-        properties = node.getProperties(sdCategory)
-
-        if (not connectableOnly):
-            # don't need to check if properties are connectable, skip
-            out[node] = properties
-            continue
-
-        out[node] = []
-
-        for prop in properties:
-            # we only reach this if connectableOnly is true, so no need to check
-            if (not prop.isConnectable()):
-                continue
-
-            out[node] += [prop]
-    
-    return out
-            
-def getConnectedInputNodes(nodes):
-    '''
-    Give a list of nodes and get the nodes connected to their inputs.
-
-    :param list[SDNode] nodes: The list of nodes to get the connected input nodes of.
-    :returns dict[SDNode, list[SDNode]]: The given nodes and the nodes connected to their inputs.
-    '''
-
-    node_prop_dict = getNodeProperties(nodes, 1, True)
-    nodes = list(node_prop_dict.keys())
-    out = {}
-
-    for node in nodes:
-        out[node] = []
-        
-        for prop in node_prop_dict[node]:
-            connections = node.getPropertyConnections(prop)
-        
-            for connection in connections:
-                out[node] += [connection.getInputPropertyNode()]
-    
-    return out
 
 create_menu("mid_export.main_menu")
