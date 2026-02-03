@@ -59,6 +59,29 @@ def getConnectedInputNodes(nodes):
     
     return out
 
+def getInputConnections(nodes):
+    '''
+    Give a list of nodes and get the connections for their inputs.
+
+    :param list[SDNode] nodes: The list of nodes to get the connected input nodes of.
+    :returns dict[SDNode, list[SDConnection]]: The given nodes and the connections for their inputs.
+    '''
+
+    node_prop_dict = getNodeProperties(nodes, 1, True)
+    nodes = list(node_prop_dict.keys())
+    out = {}
+
+    for node in nodes:
+        out[node] = []
+        
+        for prop in node_prop_dict[node]:
+            connections = node.getPropertyConnections(prop)
+        
+            for connection in connections:
+                out[node] += [connection]
+    
+    return out
+
 def printNodeTypes(nodes):
     import re
 
@@ -68,6 +91,12 @@ def printNodeTypes(nodes):
 
         # separate the ID at every ::, then get the last element (e.g. 'curve')
         name = re.split('::', id)[-1]
+        if (node.getReferencedResource()):
+            print(node.getReferencedResource())
+            print(node.getReferencedResource().getIdentifier())
+            print(node.getReferencedResource().getUrl())
+
+            continue
 
         print(name)
 
