@@ -2,12 +2,12 @@ import sd
 from sd.api.sdproperty import SDPropertyCategory
 from sd.api.sdbasetypes import float2
 
-def getNodeProperties(nodes, category, connectableOnly = True):
+def getNodesProperties(nodes, category, connectableOnly = True):
     '''
     Get the properties of the given nodes.
 
     :param list[SDNode] nodes: The list of nodes to get the properties from.
-    :param list[SDPropertyCategory] category: The category of properties to return.
+    :param int category: The category of properties to return.
     :param bool connectableOnly: Whether to only return connectable properties.
     :returns dict[SDNode, list[SDProperty]]: The nodes and their properties.
     '''
@@ -22,6 +22,9 @@ def getNodeProperties(nodes, category, connectableOnly = True):
 
         if (not connectableOnly):
             # don't need to check if properties are connectable, skip
+            
+            # Note: this could cause a bug involving the difference between lists and SDArrays.
+            # Should fix this later.
             out[node] = properties
             continue
 
@@ -35,7 +38,20 @@ def getNodeProperties(nodes, category, connectableOnly = True):
             out[node] += [prop]
     
     return out
-            
+
+def getNodeProperties(node, category, connectableOnly = True):
+    '''
+    Get the properties of the given node.
+
+    :param SDNode node: The node to get the properties from.
+    :param int category: The category of properties to return.
+    \n  (Annotation = 0, Input = 1, Output = 2)\n
+    :param bool connectableOnly: Whether to only return connectable properties.
+    :returns list[SDProperty]: The nodes properties.
+    '''
+
+    return getNodesProperties([node], category, connectableOnly)[node]
+
 def getConnectedInputNodes(nodes):
     '''
     Give a list of nodes and get the nodes connected to their inputs.
@@ -44,7 +60,7 @@ def getConnectedInputNodes(nodes):
     :returns dict[SDNode, list[SDNode]]: The given nodes and the nodes connected to their inputs.
     '''
 
-    node_prop_dict = getNodeProperties(nodes, 1, True)
+    node_prop_dict = getNodesProperties(nodes, 1, True)
     nodes = list(node_prop_dict.keys())
     out = {}
 
@@ -67,7 +83,7 @@ def getInputConnections(nodes):
     :returns dict[SDNode, list[SDConnection]]: The given nodes and the connections for their inputs.
     '''
 
-    node_prop_dict = getNodeProperties(nodes, 1, True)
+    node_prop_dict = getNodesProperties(nodes, 1, True)
     nodes = list(node_prop_dict.keys())
     out = {}
 
