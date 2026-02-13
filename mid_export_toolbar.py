@@ -73,12 +73,7 @@ class MainToolBar(QToolBar):
 
     @Slot()
     def __wireORM(self):
-        # Find ORM Outputs from selected nodes
-        selected_nodes = self.__qtUIMgr.getCurrentGraphSelectedNodes()
-
-        # If no nodes are selected, search all nodes
-        if (len(selected_nodes) <= 0):
-            selected_nodes = self.__qtUIMgr.getCurrentGraph().getNodes()
+        selected_nodes = self.__qtUIMgr.getCurrentGraph().getNodes()
 
         outputNodes = nds.getOutputNodes(selected_nodes)
 
