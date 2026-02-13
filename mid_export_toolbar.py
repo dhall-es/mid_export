@@ -18,16 +18,8 @@ class MainToolBar(QToolBar):
         self.__sdUIMgr = sdUIMgr
         self.__packMgr = sd.getContext().getSDApplication().getPackageMgr()
 
-        printNodeTypes = self.addAction("Node Types")
-        printNodeTypes.triggered.connect(self.__printNodeTypes)
-
         wireORM = self.addAction("ORM")
         wireORM.triggered.connect(self.__wireORM)
-
-    @Slot()
-    def __printNodeTypes(self):
-        nodes = self.__qtUIMgr.getCurrentGraphSelectedNodes()
-        nds.printNodeTypes(nodes)
 
     @Slot()
     def __instanceRgba(self):
